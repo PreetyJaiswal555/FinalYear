@@ -1,0 +1,29 @@
+numpy
+pandas
+
+#face recognization
+scikit-learn
+#face detect
+dlib-bin
+#dlib-20.0.0-cp312-cp312-win_amd64.whl
+
+
+git+https://github.com/ageitgey/face_recognition_models
+
+setuptools<70.0.0
+
+#database
+supabase
+
+#hashing methods
+bcrypt
+
+#library for qr code
+segno
+
+#image preprocessing
+pillow
+
+streamlit
+
+
