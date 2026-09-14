@@ -1,4 +1,8 @@
+streamlit
+
+
 numpy
+
 pandas
 
 #face recognization
@@ -24,6 +28,13 @@ segno
 #image preprocessing
 pillow
 
-streamlit
+
+
+
+#audio files
+
+librosa
+resemblyzer
+
 
 

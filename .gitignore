@@ -3,7 +3,7 @@
 
 *.pyc
 .DS_Store
-_pycache_/
+__pycache__/
 
 venv/
 .streamlit/
