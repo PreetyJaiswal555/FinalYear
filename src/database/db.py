@@ -159,6 +159,130 @@ def update_student_face_embedding(student_id, embedding_list):
     return response.data
 
 
+def update_student_voice_embedding(student_id: int, embedding_list: list):
+    """
+    Overwrite the voice_embedding for *student_id* with a new Resemblyzer
+    embedding provided as a Python list.
+
+    Parameters
+    ----------
+    student_id : int
+    embedding_list : list[float]
+
+    Returns
+    -------
+    list  Supabase response data
+    """
+    response = (
+        supabase.table('students')
+        .update({'voice_embedding': embedding_list})
+        .eq('student_id', student_id)
+        .execute()
+    )
+    return response.data
+
+
+# ---------------------------------------------------------------------------
+# Latecomer Attendance Functions
+# ---------------------------------------------------------------------------
+
+def check_student_present_today(student_id: int, subject_id: int) -> bool:
+    """
+    Return True if the student is already marked present in attendance_logs
+    for the given subject_id today (any time on the current calendar date).
+    """
+    from datetime import date
+    today_str = date.today().isoformat()
+    response = (
+        supabase.table('attendance_logs')
+        .select('id, is_present')
+        .eq('student_id', student_id)
+        .eq('subject_id', subject_id)
+        .gte('timestamp', f'{today_str}T00:00:00')
+        .lte('timestamp', f'{today_str}T23:59:59')
+        .execute()
+    )
+    rows = response.data or []
+    return any(bool(r.get('is_present')) for r in rows)
+
+
+def check_existing_late_record(student_id: int, subject_id: int) -> bool:
+    """
+    Return True if a late_attendance record already exists for this student
+    and subject today (prevents duplicate late records).
+    """
+    from datetime import date
+    today_str = date.today().isoformat()
+    response = (
+        supabase.table('late_attendance')
+        .select('id')
+        .eq('student_id', student_id)
+        .eq('subject_id', subject_id)
+        .gte('timestamp', f'{today_str}T00:00:00')
+        .lte('timestamp', f'{today_str}T23:59:59')
+        .execute()
+    )
+    return len(response.data or []) > 0
+
+
+def insert_late_attendance(student_id: int, subject_id: int,
+                           face_score: float = None, voice_score: float = None,
+                           liveness_passed: bool = False) -> list:
+    """
+    Insert a single row into late_attendance and mark the student as present
+    in attendance_logs for today (if not already present).
+
+    Returns
+    -------
+    list  Supabase insert response data for the late_attendance row.
+    """
+    from datetime import datetime
+    ts = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+    # 1. Insert late record
+    late_data = {
+        'student_id': student_id,
+        'subject_id': subject_id,
+        'timestamp': ts,
+        'face_score': face_score,
+        'voice_score': voice_score,
+        'liveness_passed': liveness_passed,
+        'status': 'late',
+    }
+    late_resp = supabase.table('late_attendance').insert(late_data).execute()
+
+    # 2. Also mark student as present in the main attendance_logs
+    # so that existing attendance percentage calculations count this student
+    attendance_data = {
+        'student_id': student_id,
+        'subject_id': subject_id,
+        'timestamp': ts,
+        'is_present': True,
+    }
+    supabase.table('attendance_logs').insert(attendance_data).execute()
+
+    return late_resp.data
+
+
+def get_late_attendance_for_teacher(teacher_id: int) -> list:
+    """
+    Return all late_attendance rows for subjects that belong to *teacher_id*,
+    joined with student name and subject info.
+
+    Returns
+    -------
+    list of dict
+    """
+    response = (
+        supabase.table('late_attendance')
+        .select('*, students(name), subjects!inner(name, subject_code, teacher_id)')
+        .eq('subjects.teacher_id', teacher_id)
+        .order('timestamp', desc=True)
+        .execute()
+    )
+    return response.data or []
+
+
 def get_attendance_for_subject(subject_id):
     """
     Return all attendance_logs rows for *subject_id* together with the

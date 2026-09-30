@@ -32,6 +32,7 @@ from src.database.db import (
     get_student_attendance,
     unenroll_student_to_subject,
     update_student_face_embedding,
+    update_student_voice_embedding,
 )
 from src.components.dialog_enroll import enroll_dialog
 from src.components.subject_card import subject_card
@@ -67,6 +68,18 @@ def student_dashboard():
             icon="⚠️"
         )
         _re_enrollment_section(student_id)
+        st.divider()
+
+    # ── Voice enrollment banner (shown when voice_embedding is missing) ───
+    voice_emb = student_data.get('voice_embedding')
+    if not voice_emb:
+        st.warning(
+            "🎤 **Your voice profile is not set up yet.**  "
+            "Record a short voice sample below so you can be verified "
+            "for Voice Attendance and Latecomer Mode.",
+            icon="🎤"
+        )
+        _voice_enrollment_section(student_id)
         st.divider()
 
     # ── Enrolled Subjects ─────────────────────────────────────────────────
@@ -159,6 +172,41 @@ def _re_enrollment_section(student_id: int):
                         st.rerun()
 
 
+def _voice_enrollment_section(student_id: int):
+    """Inline voice enrollment panel shown when a student's voice_embedding is NULL."""
+    with st.container(border=True):
+        st.subheader("🎤 Enroll Your Voice")
+        st.write(
+            "Say **\"I am present\"** clearly into your microphone and click Save. "
+            "A quiet environment gives the best result."
+        )
+        audio_data = None
+        try:
+            audio_data = st.audio_input("Record your voice", key="voice_enroll_audio")
+        except Exception:
+            st.error("Audio recording is not available in this environment.")
+            return
+
+        if audio_data:
+            if st.button("Save Voice Profile", type="primary", key="voice_enroll_save"):
+                with st.spinner("Processing your voice…"):
+                    voice_emb = get_voice_embedding(audio_data.read())
+                    if voice_emb is None:
+                        st.error("❌ Could not process the audio. Please try again in a quieter environment.")
+                    else:
+                        update_student_voice_embedding(student_id, voice_emb)
+                        # Refresh session data so the banner disappears
+                        all_students = get_all_students()
+                        updated = next(
+                            (s for s in all_students if s['student_id'] == student_id), None
+                        )
+                        if updated:
+                            st.session_state.student_data = updated
+                        st.success("✅ Voice profile saved! You are now ready for Voice Attendance and Latecomer Mode.")
+                        time.sleep(1.5)
+                        st.rerun()
+
+
 # ---------------------------------------------------------------------------
 # Student Screen (login + registration)
 # ---------------------------------------------------------------------------
@@ -223,7 +271,7 @@ def student_screen():
             st.header('Register New Profile')
             new_name = st.text_input("Enter your full name", placeholder='E.g. Preety Jaiswal')
 
-            st.subheader('Voice Enrollment (Optional)')
+            st.subheader('Voice Enrollment ')
             st.info(
                 "Record a short phrase like I am present to enable voice-based attendance."
                 "to enable voice-based attendance."

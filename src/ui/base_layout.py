@@ -1,31 +1,39 @@
 import streamlit as st
+import base64
+import os
+
+
+def _get_bg_b64() -> str:
+    """Read assets/backgroundcolour.png and return a CSS-ready base64 data URI."""
+    bg_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "assets", "backgroundcolour.png"
+    )
+    bg_path = os.path.normpath(bg_path)
+    with open(bg_path, "rb") as f:
+        data = base64.b64encode(f.read()).decode()
+    return f"data:image/png;base64,{data}"
 
 
 def style_background_home():
 
-    st.markdown(""" 
+    bg_src = _get_bg_b64()
+
+    st.markdown(f""" 
          <style>
 
-            .stApp{
-              background:#5865f2 !important;
-
-            }
-            .stApp div[data-testid="stColumn"]{
+            .stApp{{
+              background: url("{bg_src}") no-repeat center center fixed !important;
+              background-size: cover !important;
+            }}
+            .stApp div[data-testid="stColumn"]{{
                     background-color:#E0E3FF !important;
                     padding:2.5rem !important;
                     border-radius: 5rem !important;
-                    }
+                    }}
 
 
          </style>
-
-
-
-        
-    
-    
-    """
-    ,unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 
 
@@ -46,6 +54,7 @@ def style_background_dashboard():
 
 
         
+
     
     
     """
@@ -145,6 +154,7 @@ def style_base_layout():
 
 
         
+
     
     
     """

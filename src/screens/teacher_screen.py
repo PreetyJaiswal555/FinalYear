@@ -25,12 +25,14 @@ from src.database.db import (
     get_attendance_for_teacher,
     get_subject_students_with_embeddings,
     get_attendance_for_subject,
+    get_late_attendance_for_teacher,
 )
 from src.components.dialog_create_subject import create_subject_dialog
 from src.components.dialog_share_subject import share_subject_dialog
 from src.components.dialog_add_photo import add_photos_dialog
 from src.components.dialog_attendance_results import attendance_result_dialog
 from src.components.dialog_voice_attendance import voice_attendance_dialog
+from src.components.dialog_latecomer import latecomer_attendance_section, _reset_latecomer_state
 from src.database.config import supabase
 
 # New ArcFace pipeline
@@ -75,7 +77,7 @@ def teacher_dashboard():
     if "current_teacher_tab" not in st.session_state:
         st.session_state.current_teacher_tab = 'take_attendance'
 
-    tab1, tab2, tab3 = st.columns(3)
+    tab1, tab2, tab3, tab4 = st.columns(4)
 
     with tab1:
         t1_type = "primary" if st.session_state.current_teacher_tab == 'take_attendance' else "tertiary"
@@ -95,6 +97,12 @@ def teacher_dashboard():
             st.session_state.current_teacher_tab = 'attendance_records'
             st.rerun()
 
+    with tab4:
+        t4_type = "primary" if st.session_state.current_teacher_tab == 'latecomers' else "tertiary"
+        if st.button('Latecomers', type=t4_type, width='stretch', icon=':material/schedule:'):
+            st.session_state.current_teacher_tab = 'latecomers'
+            st.rerun()
+
     st.divider()
 
     if st.session_state.current_teacher_tab == "take_attendance":
@@ -103,8 +111,11 @@ def teacher_dashboard():
         teacher_tab_manage_subjects()
     if st.session_state.current_teacher_tab == "attendance_records":
         teacher_tab_attendance_records()
+    if st.session_state.current_teacher_tab == "latecomers":
+        teacher_tab_latecomers()
 
     footer_dashboard()
+
 
 
 # ===========================================================================
@@ -145,6 +156,14 @@ def teacher_tab_take_attendance():
                 st.image(img, width='stretch', caption=f'Photo {idx + 1}')
 
     has_photos = bool(st.session_state.attendance_images)
+
+    # ── Latecomer Mode guard: if active, show latecomer section only ──────
+    if st.session_state.get('latecomer_mode_active', False):
+        st.divider()
+        latecomer_attendance_section(selected_subject_id, selected_subject_label)
+        return
+
+    # ── Normal attendance action buttons ──────────────────────────────────
     c1, c2, c3 = st.columns(3)
 
     with c1:
@@ -168,6 +187,24 @@ def teacher_tab_take_attendance():
             icon=':material/mic:'
         ):
             voice_attendance_dialog(selected_subject_id)
+
+    # ── Enable Latecomer Mode button ──────────────────────────────────────
+    st.divider()
+    st.markdown("#### 🟡 Latecomer Attendance")
+    st.caption(
+        "After normal attendance is complete, enable Latecomer Mode to allow "
+        "late students to verify via face and voice recognition."
+    )
+    if st.button(
+        "Enable Latecomer Mode",
+        type="secondary",
+        width="stretch",
+        icon=":material/schedule:",
+        key="enable_latecomer_btn",
+    ):
+        _reset_latecomer_state()
+        st.session_state.latecomer_mode_active = True
+        st.rerun()
 
 
 def _run_face_recognition(selected_subject_id: int):
@@ -543,6 +580,104 @@ def _weekly_attendance_view(teacher_id: int):
     m1.metric("Total Students",  total_students)
     m2.metric("Sessions This Week", len(unique_sessions))
     m3.metric("Average Attendance", f"{avg_pct:.0f}%")
+
+
+
+# ===========================================================================
+# Tab 4 — Latecomers
+# ===========================================================================
+
+def teacher_tab_latecomers():
+    """
+    Display the separate Latecomer Records sheet.
+
+    Shows all late_attendance records for subjects owned by the current teacher.
+    This is completely separate from the normal Attendance Records tab and
+    does NOT modify any existing attendance_logs data.
+
+    Columns: Student ID | Student | Subject | Date | Arrival Time |
+             Face Score | Voice Score | Status
+    """
+    st.header("🟡 Latecomer Records")
+    teacher_id = st.session_state.teacher_data['teacher_id']
+
+    try:
+        records = get_late_attendance_for_teacher(teacher_id)
+    except Exception as e:
+        st.error(
+            f"❌ Could not load latecomer records: {e}\n\n"
+            "Please ensure the `late_attendance` table has been created in Supabase. "
+            "See the setup instructions provided during implementation."
+        )
+        return
+
+    if not records:
+        st.info(
+            "No latecomer records found. "
+            "Late records will appear here after a teacher runs Latecomer Mode "
+            "from the **Take Attendance** tab."
+        )
+        return
+
+    rows = []
+    for r in records:
+        ts = r.get('timestamp', '')
+        try:
+            dt = datetime.fromisoformat(ts)
+            date_str   = dt.strftime("%d-%b-%Y")
+            time_str   = dt.strftime("%I:%M %p")
+        except Exception:
+            date_str = ts[:10] if ts else "N/A"
+            time_str = "N/A"
+
+        student_info = r.get('students') or {}
+        subject_info = r.get('subjects') or {}
+
+        face_score  = r.get('face_score')
+        voice_score = r.get('voice_score')
+
+        rows.append({
+            "Student ID":   r.get('student_id', '—'),
+            "Student":      student_info.get('name', '—'),
+            "Subject":      subject_info.get('name', '—'),
+            "Subject Code": subject_info.get('subject_code', '—'),
+            "Date":         date_str,
+            "Arrival Time": time_str,
+            "Face Score":   f"{face_score:.2f}" if face_score is not None else "—",
+            "Voice Score":  f"{voice_score:.2f}" if voice_score is not None else "—",
+            "Status":       "🟡 Present + Late",
+        })
+
+    late_df = pd.DataFrame(rows)
+    st.caption(f"Total latecomer records: **{len(rows)}**")
+
+    st.dataframe(
+        late_df,
+        width='stretch',
+        hide_index=True,
+        column_config={
+            "Student ID":   st.column_config.NumberColumn("Student ID"),
+            "Student":      st.column_config.TextColumn("Student", width="medium"),
+            "Subject":      st.column_config.TextColumn("Subject", width="medium"),
+            "Subject Code": st.column_config.TextColumn("Code"),
+            "Date":         st.column_config.TextColumn("Date"),
+            "Arrival Time": st.column_config.TextColumn("Arrival Time"),
+            "Face Score":   st.column_config.TextColumn("Face Score"),
+            "Voice Score":  st.column_config.TextColumn("Voice Score"),
+            "Status":       st.column_config.TextColumn("Status"),
+        },
+    )
+
+    # Summary metrics
+    st.divider()
+    total_late = len(rows)
+    unique_students = len(set(r.get('student_id') for r in records))
+    unique_subjects = len(set((r.get('subjects') or {}).get('subject_code','') for r in records))
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Total Late Records", total_late)
+    m2.metric("Unique Students",    unique_students)
+    m3.metric("Subjects Affected",  unique_subjects)
 
 
 # ===========================================================================

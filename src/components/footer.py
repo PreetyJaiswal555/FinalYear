@@ -7,7 +7,7 @@ def footer_home():
             margin-top: 2rem;
             padding: 18px 0 10px;
             text-align: center;
-            color: rgba(255,255,255,0.75);
+            color: #1a1a4e;
             font-size: 13px;
         ">
             © 2026 &nbsp; • &nbsp;
