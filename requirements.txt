@@ -1,40 +1,33 @@
+# ── UI Framework ────────────────────────────────────────────────────────────
 streamlit
 
-
+# ── Scientific / Data ────────────────────────────────────────────────────────
 numpy
-
 pandas
 
-#face recognization
-scikit-learn
-#face detect
-dlib-bin
-#dlib-20.0.0-cp312-cp312-win_amd64.whl
+# ── Face Recognition (ArcFace / InsightFace pipeline) ───────────────────────
+# InsightFace provides RetinaFace detection + ArcFace 512-D embeddings
+insightface
 
+# ONNX runtime required by InsightFace to run ONNX model files
+onnxruntime
 
-git+https://github.com/ageitgey/face_recognition_models
+# OpenCV required by InsightFace for image pre/post-processing
+# Use headless variant to avoid Qt/GUI dependency conflicts on server
+opencv-python-headless
 
-setuptools<70.0.0
-
-#database
+# ── Database ─────────────────────────────────────────────────────────────────
 supabase
 
-#hashing methods
+# ── Security ─────────────────────────────────────────────────────────────────
 bcrypt
 
-#library for qr code
+# ── QR Code generation ───────────────────────────────────────────────────────
 segno
 
-#image preprocessing
+# ── Image handling ────────────────────────────────────────────────────────────
 pillow
 
-
-
-
-#audio files
-
+# ── Voice recognition (Resemblyzer pipeline — unchanged) ─────────────────────
 librosa
 resemblyzer
-
-
-

@@ -102,7 +102,78 @@ def create_attendance(logs):
 
 def get_attendance_for_teacher(teacher_id):
     response = supabase.table('attendance_logs').select("*, subjects!inner(*)").eq('subjects.teacher_id', teacher_id).execute()
-    return response.data    
+    return response.data
 
 
+# ---------------------------------------------------------------------------
+# New functions for ArcFace pipeline and weekly attendance
+# ---------------------------------------------------------------------------
 
+def get_subject_students_with_embeddings(subject_id):
+    """
+    Return all students enrolled in *subject_id* together with their
+    face_embedding and voice_embedding.
+
+    Used by face attendance to restrict candidate matching to only those
+    students who are enrolled in the selected subject.
+
+    Returns
+    -------
+    list of dict
+        Each dict: { student_id, name, face_embedding, voice_embedding }
+    """
+    response = (
+        supabase.table('subject_students')
+        .select('*, students(student_id, name, face_embedding, voice_embedding)')
+        .eq('subject_id', subject_id)
+        .execute()
+    )
+    students = []
+    for node in (response.data or []):
+        s = node.get('students')
+        if s:
+            students.append(s)
+    return students
+
+
+def update_student_face_embedding(student_id, embedding_list):
+    """
+    Overwrite the face_embedding for *student_id* with a new ArcFace
+    512-D embedding provided as a Python list.
+
+    Parameters
+    ----------
+    student_id : int
+    embedding_list : list[float]  (512-D ArcFace embedding)
+
+    Returns
+    -------
+    list  Supabase response data
+    """
+    response = (
+        supabase.table('students')
+        .update({'face_embedding': embedding_list})
+        .eq('student_id', student_id)
+        .execute()
+    )
+    return response.data
+
+
+def get_attendance_for_subject(subject_id):
+    """
+    Return all attendance_logs rows for *subject_id* together with the
+    student name.  Used for the weekly attendance aggregation view.
+
+    Returns
+    -------
+    list of dict
+        Each dict: { id, student_id, subject_id, timestamp, is_present,
+                     students: { name } }
+    """
+    response = (
+        supabase.table('attendance_logs')
+        .select('*, students(name)')
+        .eq('subject_id', subject_id)
+        .execute()
+    )
+    return response.data or []

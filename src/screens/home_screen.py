@@ -12,6 +12,15 @@ def home_screen():
     style_background_home()
 
     style_base_layout()
+    st.markdown("""
+        <style>
+        div[data-testid="column"] h1,
+        div[data-testid="column"] h2,
+        div[data-testid="column"] h3 {
+            color: #333333 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
 
 
