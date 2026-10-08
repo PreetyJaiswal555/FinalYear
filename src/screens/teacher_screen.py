@@ -38,6 +38,9 @@ from src.database.config import supabase
 # New ArcFace pipeline
 from src.pipline.face_pipeline import recognize_faces, RECOGNITION_THRESHOLD
 
+# CCTV Attendance (additive feature — does not modify existing behaviour)
+from src.cctv.cctv_attendance import cctv_attendance_section
+
 
 # ===========================================================================
 # Teacher Screen Router
@@ -77,7 +80,7 @@ def teacher_dashboard():
     if "current_teacher_tab" not in st.session_state:
         st.session_state.current_teacher_tab = 'take_attendance'
 
-    tab1, tab2, tab3, tab4 = st.columns(4)
+    tab1, tab2, tab3, tab4, tab5 = st.columns(5)
 
     with tab1:
         t1_type = "primary" if st.session_state.current_teacher_tab == 'take_attendance' else "tertiary"
@@ -103,6 +106,12 @@ def teacher_dashboard():
             st.session_state.current_teacher_tab = 'latecomers'
             st.rerun()
 
+    with tab5:
+        t5_type = "primary" if st.session_state.current_teacher_tab == 'cctv_attendance' else "tertiary"
+        if st.button('CCTV Attendance', type=t5_type, width='stretch', icon=':material/videocam:'):
+            st.session_state.current_teacher_tab = 'cctv_attendance'
+            st.rerun()
+
     st.divider()
 
     if st.session_state.current_teacher_tab == "take_attendance":
@@ -113,6 +122,9 @@ def teacher_dashboard():
         teacher_tab_attendance_records()
     if st.session_state.current_teacher_tab == "latecomers":
         teacher_tab_latecomers()
+    if st.session_state.current_teacher_tab == "cctv_attendance":
+        teacher_tab_cctv_attendance()
+
 
     footer_dashboard()
 
@@ -697,6 +709,39 @@ def login_teacher(username: str, password: str) -> bool:
 
 
 def teacher_screen_login():
+    # ── Scoped CSS: white button text + white popup background ────────────
+    st.markdown("""
+        <style id="teacher-login-css">
+        /* Button text white — .stApp scope keeps this off other pages */
+        .stApp button[kind="primary"],
+        .stApp button[kind="primary"] *,
+        .stApp button[kind="secondary"],
+        .stApp button[kind="secondary"] * {
+            color: white !important;
+        }
+        /* Shortcut badge (Streamlit renders it as small/kbd/span inside button) */
+        .stApp button[kind="primary"] small,
+        .stApp button[kind="primary"] kbd,
+        .stApp button[kind="primary"] span,
+        .stApp button[kind="secondary"] small,
+        .stApp button[kind="secondary"] kbd,
+        .stApp button[kind="secondary"] span {
+            color: white !important;
+            opacity: 1 !important;
+        }
+        /* Popup / dialog background white */
+        [data-baseweb="modal"],
+        [data-baseweb="modal"] > div,
+        [data-baseweb="modal"] > div > div,
+        [data-baseweb="modal"] > div > div > div,
+        [data-testid="stModal"],
+        [data-testid="stModal"] > div,
+        [data-testid="stModal"] > div > div {
+            background-color: white !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     c1, c2 = st.columns(2, vertical_alignment='center', gap='xxlarge')
     with c1:
         header_dashboard()
@@ -746,6 +791,39 @@ def register_teacher(teacher_username, teacher_name, teacher_pass, teacher_pass_
 
 
 def teacher_screen_register():
+    # ── Scoped CSS: white button text + white popup background ────────────
+    st.markdown("""
+        <style id="teacher-register-css">
+        /* Button text white — .stApp scope keeps this off other pages */
+        .stApp button[kind="primary"],
+        .stApp button[kind="primary"] *,
+        .stApp button[kind="secondary"],
+        .stApp button[kind="secondary"] * {
+            color: white !important;
+        }
+        /* Shortcut badge (Streamlit renders it as small/kbd/span inside button) */
+        .stApp button[kind="primary"] small,
+        .stApp button[kind="primary"] kbd,
+        .stApp button[kind="primary"] span,
+        .stApp button[kind="secondary"] small,
+        .stApp button[kind="secondary"] kbd,
+        .stApp button[kind="secondary"] span {
+            color: white !important;
+            opacity: 1 !important;
+        }
+        /* Popup / dialog background white */
+        [data-baseweb="modal"],
+        [data-baseweb="modal"] > div,
+        [data-baseweb="modal"] > div > div,
+        [data-baseweb="modal"] > div > div > div,
+        [data-testid="stModal"],
+        [data-testid="stModal"] > div,
+        [data-testid="stModal"] > div > div {
+            background-color: white !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     c1, c2 = st.columns(2, vertical_alignment='center', gap='xxlarge')
     with c1:
         header_dashboard()
@@ -785,3 +863,26 @@ def teacher_screen_register():
             st.session_state.teacher_login_type = 'login'
 
     footer_dashboard()
+
+
+# ===========================================================================
+# Tab 5 — CCTV Attendance  (NEW — additive only)
+# ===========================================================================
+
+def teacher_tab_cctv_attendance():
+    """
+    Render the CCTV Attendance tab.
+
+    Delegates entirely to cctv_attendance_section() from src/cctv/cctv_attendance.py.
+    All existing tabs (Take Attendance, Manage Subjects, Attendance Records,
+    Latecomers) are completely untouched.
+    """
+    teacher_id = st.session_state.teacher_data['teacher_id']
+    st.header('CCTV Attendance')
+    st.caption(
+        "Continuous real-time face recognition via camera. "
+        "Start the session, then close normal attendance to enable the late window. "
+        "Stop CCTV when done — absent students are finalized automatically."
+    )
+    st.divider()
+    cctv_attendance_section(teacher_id)
